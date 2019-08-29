@@ -13,6 +13,9 @@ o [NSE][GH#1665] The HTTP library no longer crashes when code requests digest
   authentication but the server does not provide the necessary authentication
   header. [nnposter]
 
+o [NSE] Fixed a bug in http-wordpress-users.nse that could cause
+  extraneous output to be captured as part of a username. [Duarte Silva]
+
 Nmap 7.80 [2019-08-10]
 
 o [Windows] The Npcap Windows packet capturing library (https://npcap.org/)
@@ -58,6 +61,8 @@ o [NSE] Added 11 NSE scripts, from 8 authors, bringing the total up to 598!
   + [GH#1126] vulners queries the Vulners CVE database API using CPE
     information from Nmap's service and application version detection.
     [GMedian, Daniel Miller]
+
+o [GH#1371] The macOS installer is now built for x86_64 architecture, not i386.
 
 o [GH#1396] Fixed the Windows installer, which would replace the entire PATH
   system variable with the path for Nmap if it exceeded 1024 bytes. This was
