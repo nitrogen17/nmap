@@ -133,6 +133,7 @@ local smbauth = require "smbauth"
 local stdnse = require "stdnse"
 local string = require "string"
 local table = require "table"
+local tableaux = require "tableaux"
 local unicode = require "unicode"
 local smb2 = require "smb2"
 _ENV = stdnse.module("smb", stdnse.seeall)
@@ -1019,22 +1020,23 @@ function negotiate_v1(smb, overrides)
   end
 
   -- Data section
-  if #data < smb.key_length then
-    return false, "SMB: ERROR: not enough data for server_challenge"
-  end
-  smb.server_challenge, pos = string.unpack(string.format("<c%d", smb['key_length']), data)
   if(smb['extended_security'] == true) then
     if #data < 16 then
       return false, "SMB: ERROR: not enough data for extended security"
     end
-    smb.server_guid, pos = string.unpack("<c16", data, pos)
+    smb.server_guid, pos = string.unpack("<c16", data)
 
     -- do we have a security blob?
-    if ( #data - pos > 0 ) then
+    if ( #data - pos + 1 > 0 ) then
       smb.security_blob = data:sub(pos)
       pos = #data + 1
     end
   else
+    if #data < smb.key_length then
+      return false, "SMB: ERROR: not enough data for server_challenge"
+    end
+    smb.server_challenge, pos = string.unpack(string.format("<c%d", smb['key_length']), data)
+
     -- Get the (null-terminated) domain as a Unicode string
     smb['domain'] = ""
     smb['server'] = ""
@@ -1090,8 +1092,10 @@ end
 function list_dialects(host, overrides)
   local smb2_dialects = {0x0202, 0x0210, 0x0300, 0x0302, 0x0311}
   local supported_dialects = {}
-  local status, smb1_dialects
+  local status, smb1_dialect
   local smbstate
+
+  overrides = tableaux.tcopy(overrides or {})
 
   -- Check for SMBv1 first
   stdnse.debug2("Checking if SMBv1 is supported")
@@ -1100,9 +1104,9 @@ function list_dialects(host, overrides)
     return false, smbstate
   end
 
-  status, smb1_dialects = negotiate_v1(smbstate, overrides)
+  status, smb1_dialect = negotiate_v1(smbstate, overrides)
   if status then --Add SMBv1 as a dialect
-    table.insert(supported_dialects, smb1_dialects)
+    table.insert(supported_dialects, smb1_dialect)
   end
   stop(smbstate)
   status = false -- Finish SMBv1 and close connection
@@ -1203,7 +1207,8 @@ local function start_session_basic(smb, log_errors, overrides)
       return false, "SMB: ERROR: Server returned less data than it was supposed to (one or more fields are missing); aborting [17]"
     end
     -- Check if we were allowed in
-    local protocol_version, command, status, flags, flags2, pid_high, signature, unused, tid, pid, uid, mid, pos = string.unpack(header_format, header)
+    local protocol_version, command, flags, flags2, pid_high, signature, unused, tid, pid, uid, mid, pos
+    protocol_version, command, status, flags, flags2, pid_high, signature, unused, tid, pid, uid, mid, pos = string.unpack(header_format, header)
 
     -- Check if we're successful
     if(status == 0) then
