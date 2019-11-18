@@ -10,6 +10,9 @@ o [Windows] Add support for the new loopback behavior in Npcap 0.9983. This
   Adapter to be installed, which was a source of problems for some users.
   [Daniel Miller]
 
+o [NSE][GH1802] The MongoDB library was causing errors when assembling protocol
+  payloads. [nnposter]
+
 o [NSE][GH#1781][GH#1796] The RTSP library was not correctly generating request
   strings. [nnposter]
 
@@ -106,6 +109,9 @@ o [GH#1291][GH#34][GH#1339] Use pcap_create instead of pcap_live_open in
   Nmap, and set immediate mode on the pcap descriptor. This solves packet
   loss problems on Linux and may improve performance on other platforms.
   [Daniel Cater, Mike Pontillo, Daniel Miller]
+
+o [NSE][GH#1330] Fixed an infinite loop in tls-alpn when the server forces a
+  particular protocol. [Daniel Miller]
 
 o [NSE] Collected utility functions for string processing into a new
   library, stringaux.lua. [Daniel Miller]
