@@ -1,5 +1,8 @@
 #Nmap Changelog ($Id$); -*-text-*-
 
+o [NSE][GH#1723] Fixed a crash on Windows when processing a GZIP-encoded HTTP
+  body. [Daniel Miller]
+
 o Upgrade libpcap to 1.9.1, which addresses several CVE vulnerabilities.
 
 o Upgrade libssh2 to 1.9.0, fixing compilation with OpenSSL 1.1.0 API.
@@ -59,6 +62,9 @@ o [NSE] Fixed a bug in http-wordpress-users.nse that could cause
 
 o Added a UDP payload for STUN (Session Traversal Utilities for NAT).
   [David Fifield]
+
+o [NSE] Fixed an off-by-one bug in the stun.lua library that prevented
+  parsing a server response. [David Fifield]
 
 Nmap 7.80 [2019-08-10]
 
