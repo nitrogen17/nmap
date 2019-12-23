@@ -191,7 +191,7 @@ struct token {
 static unsigned short *parse_portlist(const char *portlist, unsigned int *count) {
   uint32_t bitmap[65536 / 32];
   unsigned short *result;
-  unsigned short i;
+  unsigned int i;
   unsigned int p;
 
   memset(bitmap, 0, sizeof(bitmap));
@@ -216,6 +216,7 @@ static unsigned short *parse_portlist(const char *portlist, unsigned int *count)
       return NULL;
   }
 
+  assert(*count < 65536);
   result = (unsigned short *) malloc(sizeof(*result) * *count);
   if (result == NULL)
     return NULL;
