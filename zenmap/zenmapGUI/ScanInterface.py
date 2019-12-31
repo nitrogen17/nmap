@@ -139,18 +139,16 @@ xml.__path__ = [x for x in xml.__path__ if "_xmlplus" not in x]
 
 import xml.sax
 
-from zenmapGUI.higwidgets.hignotebooks import HIGNotebook, HIGAnimatedTabLabel
-from zenmapGUI.higwidgets.higboxes import HIGVBox, HIGHBox
-from zenmapGUI.higwidgets.higdialogs import HIGAlertDialog, HIGDialog
+from zenmapGUI.higwidgets.hignotebooks import HIGNotebook
+from zenmapGUI.higwidgets.higboxes import HIGVBox
+from zenmapGUI.higwidgets.higdialogs import HIGAlertDialog
 from zenmapGUI.higwidgets.higscrollers import HIGScrolledWindow
-from zenmapGUI.higwidgets.higlabels import HIGSectionLabel
 
 from zenmapGUI.FilterBar import FilterBar
 from zenmapGUI.ScanHostDetailsPage import ScanHostDetailsPage
 from zenmapGUI.ScanToolbar import ScanCommandToolbar, ScanToolbar
 from zenmapGUI.ScanHostsView import ScanHostsView
 from zenmapGUI.ScanOpenPortsPage import ScanOpenPortsPage
-from zenmapGUI.ScanRunDetailsPage import ScanRunDetailsPage
 from zenmapGUI.ScanNmapOutputPage import ScanNmapOutputPage
 from zenmapGUI.ScanScanListPage import ScanScanListPage
 from zenmapGUI.ScansListStore import ScansListStore
@@ -159,12 +157,12 @@ from zenmapGUI.TopologyPage import TopologyPage
 from zenmapCore.NetworkInventory import NetworkInventory,\
         FilteredNetworkInventory
 from zenmapCore.NmapCommand import NmapCommand
-from zenmapCore.UmitConf import CommandProfile, ProfileNotFound, is_maemo
+from zenmapCore.UmitConf import CommandProfile, is_maemo
 from zenmapCore.NmapParser import NmapParser
 from zenmapCore.Paths import Path, get_extra_executable_search_paths
 from zenmapCore.UmitLogging import log
 from zenmapCore.NmapOptions import NmapOptions, split_quoted, join_quoted
-import zenmapCore.I18N
+import zenmapCore.I18N  # lgtm[py/unused-import]
 
 # How often the live output view refreshes, in milliseconds.
 NMAP_OUTPUT_REFRESH_INTERVAL = 1000
@@ -514,8 +512,6 @@ class ScanInterface(HIGVBox):
         parsed.profile_name = profile_name
         parsed.nmap_command = command.command
 
-        del(profile)
-
     def kill_all_scans(self):
         """Kill all running scans."""
         for scan in self.jobs:
@@ -588,7 +584,8 @@ class ScanInterface(HIGVBox):
         except Exception, e:
             warn_dialog = HIGAlertDialog(
                 message_format=_("Error executing command"),
-                secondary_text=unicode(e, errors='replace'), type=gtk.MESSAGE_ERROR)
+                secondary_text=unicode(e, errors='replace'),
+                type=gtk.MESSAGE_ERROR)
             warn_dialog.run()
             warn_dialog.destroy()
             return
@@ -621,8 +618,8 @@ class ScanInterface(HIGVBox):
                 alive = scan.scan_state()
                 if alive:
                     continue
-            except:
-                log.debug("Scan terminated unexpectedly: %s" % scan.command)
+            except Exception as e:
+                log.debug("Scan terminated unexpectedly: %s (%s)" % (scan.command, e))
                 self.scans_store.fail_running_scan(scan)
             else:
                 log.debug("Scan finished: %s" % scan.command)
@@ -653,7 +650,7 @@ class ScanInterface(HIGVBox):
                 # Some options like --iflist cause Nmap to emit an empty XML
                 # file. Ignore the exception in this case.
                 st = os.stat(command.get_xml_output_filename())
-            except:
+            except Exception:
                 st = None
             if st is None or st.st_size > 0:
                 warn_dialog = HIGAlertDialog(
@@ -717,7 +714,6 @@ class ScanInterface(HIGVBox):
     def update_target_profile(self, parsed):
         """Update the "Target" and "Profile" entries based on the contents of a
         parsed scan."""
-        command = parsed.get_nmap_command()
         targets = parsed.get_targets()
         profile_name = parsed.get_profile_name()
 
@@ -743,7 +739,6 @@ class ScanInterface(HIGVBox):
 
             for service in host.services:
                 name = service["service_name"]
-                state = service["port_state"]
 
                 if name not in self.services.keys():
                     self.services[name] = []
