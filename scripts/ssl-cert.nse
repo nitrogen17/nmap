@@ -212,25 +212,26 @@ local function name_to_table(name)
 end
 
 local function output_tab(cert)
+  if not have_openssl then
+    -- OpenSSL is required to parse the cert, so just dump the PEM
+    return {pem = cert.pem}
+  end
   local o = stdnse.output_table()
   o.subject = name_to_table(cert.subject)
   o.issuer = name_to_table(cert.issuer)
-  o.pubkey = {}
-  for k, v in pairs(cert.pubkey) do
-    local out = v
-    if have_openssl and type(v) == "userdata" then
-      if k == "exponent" then
-        out = openssl.bignum_bn2dec(v)
-      else
-        out = openssl.bignum_bn2hex(v)
-      end
-    end
-    o.pubkey[k] = out
-  end
+
+  o.pubkey = stdnse.output_table()
+  o.pubkey.type = cert.pubkey.type
+  o.pubkey.bits = cert.pubkey.bits
+  o.pubkey.modulus = openssl.bignum_bn2hex(cert.pubkey.modulus)
+  o.pubkey.exponent = openssl.bignum_bn2dec(cert.pubkey.exponent)
+
   o.extensions = cert.extensions
   o.sig_algo = cert.sig_algorithm
-  o.validity = {}
-  for k, v in pairs(cert.validity) do
+
+  o.validity = stdnse.output_table()
+  for i, k in ipairs({"notBefore", "notAfter"}) do
+    local v = cert.validity[k]
     if type(v)=="string" then
       o.validity[k] = v
     else
@@ -244,6 +245,10 @@ local function output_tab(cert)
 end
 
 local function output_str(cert)
+  if not have_openssl then
+    -- OpenSSL is required to parse the cert, so just dump the PEM
+    return "OpenSSL required to parse certificate.\n" .. cert.pem
+  end
   local lines = {}
 
   lines[#lines + 1] = "Subject: " .. stringify_name(cert.subject)
