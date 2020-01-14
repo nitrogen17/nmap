@@ -955,7 +955,7 @@ int my_pcap_get_selectable_fd(pcap_t *p) {
    fd is selectable? If not, it's possible for the fd to become selectable, then
    for pcap_dispatch to buffer two or more frames, and return only the first one
    Because select doesn't know about pcap's buffer, the fd does not become
-   selectable again, even though another pcap_next would succeed. On these
+   selectable again, even though another pcap_next_ex would succeed. On these
    platforms, we must do a non-blocking read from the fd before doing a select
    on the fd.
 
@@ -4156,13 +4156,83 @@ void set_pcap_filter(const char *device, pcap_t *pd, const char *bpf, ...) {
    datalink types DLT_EN10MB and DLT_LINUX_SLL. Returns -1 on error. */
 int datalink_offset(int datalink)
 {
-  if (datalink == DLT_EN10MB)
-    return ETH_HDR_LEN;
-  else if (datalink == DLT_LINUX_SLL)
-    /* The datalink type is Linux "cooked" sockets. See pcap-linktype(7). */
-    return 16;
-  else
-    return -1;
+  int offset = -1;
+  /* NOTE: IF A NEW OFFSET EVER EXCEEDS THE CURRENT MAX (24), ADJUST
+     MAX_LINK_HEADERSZ in libnetutil/netutil.h */
+  switch (datalink) {
+  case DLT_EN10MB:
+    offset = ETH_HDR_LEN;
+    break;
+  case DLT_IEEE802:
+    offset = 22;
+    break;
+#ifdef __amigaos__
+  case DLT_MIAMI:
+    offset = 16;
+    break;
+#endif
+#ifdef DLT_LOOP
+  case DLT_LOOP:
+#endif
+  case DLT_NULL:
+    offset = 4;
+    break;
+  case DLT_SLIP:
+#ifdef DLT_SLIP_BSDOS
+  case DLT_SLIP_BSDOS:
+#endif
+#if (FREEBSD || OPENBSD || NETBSD || BSDI || MACOSX)
+    offset = 16;
+#else
+    offset = 24; /* Anyone use this??? */
+#endif
+    break;
+  case DLT_PPP:
+#ifdef DLT_PPP_BSDOS
+  case DLT_PPP_BSDOS:
+#endif
+#ifdef DLT_PPP_SERIAL
+  case DLT_PPP_SERIAL:
+#endif
+#ifdef DLT_PPP_ETHER
+  case DLT_PPP_ETHER:
+#endif
+#if (FREEBSD || OPENBSD || NETBSD || BSDI || MACOSX)
+    offset = 4;
+#else
+#ifdef SOLARIS
+    offset = 8;
+#else
+    offset = 24; /* Anyone use this? */
+#endif /* ifdef solaris */
+#endif /* if freebsd || openbsd || netbsd || bsdi */
+    break;
+  case DLT_RAW:
+    offset = 0;
+    break;
+  case DLT_FDDI:
+    offset = 21;
+    break;
+#ifdef DLT_ENC
+  case DLT_ENC:
+    offset = 12;
+    break;
+#endif /* DLT_ENC */
+#ifdef DLT_LINUX_SLL
+  case DLT_LINUX_SLL:
+    offset = 16;
+    break;
+#endif
+#ifdef DLT_IPNET
+  case DLT_IPNET:
+    offset = 24;
+    break;
+#endif
+  default:
+    offset = -1;
+    break;
+  }
+  return offset;
 }
 
 /* Common subroutine for reading ARP and NS responses. Input parameters are pd,
@@ -4170,9 +4240,9 @@ int datalink_offset(int datalink)
    then the output parameters p, head, rcvdtime, datalink, and offset are filled
    in, and the function returns 1. If no frame passes before the timeout, then
    the function returns 0 and the output parameters are undefined. */
-static int read_reply_pcap(pcap_t *pd, long to_usec,
+int read_reply_pcap(pcap_t *pd, long to_usec,
   bool (*accept_callback)(const unsigned char *, const struct pcap_pkthdr *, int, size_t),
-  unsigned char **p, struct pcap_pkthdr *head, struct timeval *rcvdtime,
+  const unsigned char **p, struct pcap_pkthdr **head, struct timeval *rcvdtime,
   int *datalink, size_t *offset)
 {
   static int warning = 0;
@@ -4207,6 +4277,7 @@ static int read_reply_pcap(pcap_t *pd, long to_usec,
   do {
 
     *p = NULL;
+    int pcap_status = 0;
     /* It may be that protecting this with !pcap_selectable_fd_one_to_one is not
        necessary, that it is always safe to do a nonblocking read in this way on
        all platforms. But I have only tested it on Solaris. */
@@ -4217,22 +4288,32 @@ static int read_reply_pcap(pcap_t *pd, long to_usec,
       assert(nonblock == 0);
       rc = pcap_setnonblock(pd, 1, NULL);
       assert(rc == 0);
-      *p = (u8 *) pcap_next(pd, head);
+      pcap_status = pcap_next_ex(pd, head, p);
       rc = pcap_setnonblock(pd, nonblock, NULL);
       assert(rc == 0);
     }
 
-    if (*p == NULL) {
-      /* Nonblocking pcap_next didn't get anything. */
+    if (pcap_status == PCAP_ERROR) {
+      // TODO: Gracefully end the scan.
+      netutil_fatal("Error from pcap_next_ex: %s\n", pcap_geterr(pd));
+    }
+
+    if (pcap_status == 0 || *p == NULL) {
+      /* Nonblocking pcap_next_ex didn't get anything. */
       if (pcap_select(pd, to_usec) == 0)
         timedout = 1;
       else
-        *p = (u8 *) pcap_next(pd, head);
+        pcap_status = pcap_next_ex(pd, head, p);
     }
 
-    if (*p != NULL && accept_callback(*p, head, *datalink, *offset)) {
+    if (pcap_status == PCAP_ERROR) {
+      // TODO: Gracefully end the scan.
+      netutil_fatal("Error from pcap_next_ex: %s\n", pcap_geterr(pd));
+    }
+
+    if (pcap_status == 1 && *p != NULL && accept_callback(*p, *head, *datalink, *offset)) {
       break;
-    } else if (*p == NULL) {
+    } else if (pcap_status == 0 || *p == NULL) {
       /* Should we timeout? */
       if (to_usec == 0) {
         timedout = 1;
@@ -4264,9 +4345,9 @@ static int read_reply_pcap(pcap_t *pd, long to_usec,
     gettimeofday(&tv_end, NULL);
     *rcvdtime = tv_end;
 #else
-    rcvdtime->tv_sec = head->ts.tv_sec;
-    rcvdtime->tv_usec = head->ts.tv_usec;
-    assert(head->ts.tv_sec);
+    rcvdtime->tv_sec = (*head)->ts.tv_sec;
+    rcvdtime->tv_usec = (*head)->ts.tv_usec;
+    assert((*head)->ts.tv_sec);
 #endif
   }
 
@@ -4308,8 +4389,8 @@ int read_arp_reply_pcap(pcap_t *pd, u8 *sendermac,
                         struct in_addr *senderIP, long to_usec,
                         struct timeval *rcvdtime,
                         void (*trace_callback)(int, const u8 *, u32, struct timeval *)) {
-  unsigned char *p;
-  struct pcap_pkthdr head;
+  const unsigned char *p;
+  struct pcap_pkthdr *head;
   int datalink;
   size_t offset;
   int rc;
@@ -4334,17 +4415,13 @@ static bool accept_ns(const unsigned char *p, const struct pcap_pkthdr *head,
   int datalink, size_t offset)
 {
   struct icmpv6_hdr *icmp6_header;
-  struct icmpv6_msg_nd *na;
 
-  if (head->caplen < offset + IP6_HDR_LEN + 32)
+  if (head->caplen < offset + IP6_HDR_LEN + ICMPV6_HDR_LEN)
     return false;
 
   icmp6_header = (struct icmpv6_hdr *)(p + offset + IP6_HDR_LEN);
-  na = (struct icmpv6_msg_nd *)(p + offset + IP6_HDR_LEN + ICMPV6_HDR_LEN);
   return icmp6_header->icmpv6_type == ICMPV6_NEIGHBOR_ADVERTISEMENT &&
-    icmp6_header->icmpv6_code == 0 &&
-    na->icmpv6_option_type == 2 &&
-    na->icmpv6_option_length == 1;
+    icmp6_header->icmpv6_code == 0;
 }
 
 /* Attempts to read one IPv6/Ethernet Neighbor Solicitation reply packet from the pcap
@@ -4358,10 +4435,10 @@ static bool accept_ns(const unsigned char *p, const struct pcap_pkthdr *head,
    by Nmap only. Any other calling this should pass NULL instead. */
 int read_ns_reply_pcap(pcap_t *pd, u8 *sendermac,
                         struct sockaddr_in6 *senderIP, long to_usec,
-                        struct timeval *rcvdtime,
+                        struct timeval *rcvdtime, bool *has_mac,
                         void (*trace_callback)(int, const u8 *, u32, struct timeval *)) {
-  unsigned char *p;
-  struct pcap_pkthdr head;
+  const unsigned char *p;
+  struct pcap_pkthdr *head;
   int datalink;
   size_t offset;
   int rc;
@@ -4372,7 +4449,16 @@ int read_ns_reply_pcap(pcap_t *pd, u8 *sendermac,
     return 0;
 
   na = (struct icmpv6_msg_nd *)(p + offset + IP6_HDR_LEN + ICMPV6_HDR_LEN);
-  memcpy(sendermac, &na->icmpv6_mac, 6);
+  if (head->caplen >= ((unsigned char *)na - p) + sizeof(struct icmpv6_msg_nd) &&
+    na->icmpv6_option_type == 2 &&
+    na->icmpv6_option_length == 1) {
+    *has_mac = true;
+    memcpy(sendermac, &na->icmpv6_mac, 6);
+  }
+  else {
+    *has_mac = false;
+  }
+  senderIP->sin6_family = AF_INET6;
   memcpy(&senderIP->sin6_addr.s6_addr, &na->icmpv6_target, 16);
 
   if (trace_callback != NULL) {
@@ -4410,6 +4496,7 @@ bool doND(const char *dev, const u8 *srcmac,
   int timeleft;
   int listenrounds;
   int rc;
+  bool has_mac;
   pcap_t *pd;
   struct sockaddr_storage rcvdIP;
   rcvdIP.ss_family = AF_INET6;
@@ -4485,7 +4572,7 @@ bool doND(const char *dev, const u8 *srcmac,
       listenrounds++;
       /* Now listen until we reach our next timeout or get an answer */
       rc = read_ns_reply_pcap(pd, targetmac, (struct sockaddr_in6 *) &rcvdIP, timeleft,
-                               &rcvdtime, traceND_callback);
+                               &rcvdtime, &has_mac, traceND_callback);
       if (rc == -1)
         netutil_fatal("%s: Received -1 response from read_ns_reply_pcap", __func__);
       if (rc == 1) {
