@@ -163,11 +163,15 @@ static PacketCounter PktCt;
    AF_INET6, depending on the operating system. */
 int nmap_raw_socket() {
   int rawsd;
+  int one = 1;
 
   rawsd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
   if (rawsd < 0)
     return rawsd;
-  broadcast_socket(rawsd);
+  if (setsockopt (rawsd, SOL_SOCKET, SO_BROADCAST, (const char *) &one, sizeof(int)) != 0) {
+    error("Failed to secure socket broadcasting permission");
+    perror("setsockopt");
+  }
 #ifndef WIN32
   sethdrinclude(rawsd);
 #endif
@@ -1774,29 +1778,6 @@ bool getNextHopMAC(const char *iface, const u8 *srcmac, const struct sockaddr_st
 }
 
 
-
-
-
-
-
-
-pcap_if_t *getpcapinterfaces() {
-#ifndef WIN32
-  return NULL;
-#endif
-  pcap_if_t *p_ifaces;
-  char errbuf[PCAP_ERRBUF_SIZE];
-
-  if ((pcap_findalldevs(&p_ifaces, errbuf)) == -1) {
-    fatal("pcap_findalldevs(): Cannot retrieve pcap interfaces: %s", errbuf);
-    return NULL;
-  }
-  return p_ifaces;
-}
-
-
-
-
 int nmap_route_dst(const struct sockaddr_storage *dst, struct route_nfo *rnfo) {
   struct sockaddr_storage spoofss;
   size_t spoofsslen;
@@ -1826,19 +1807,6 @@ void max_rcvbuf(int sd) {
 #endif /* WIN32 */
 }
 
-
-/* Give broadcast permission to a socket */
-void broadcast_socket(int sd) {
-  int one = 1;
-#ifdef WIN32
-  if (sd == 501)
-    return;
-#endif
-  if (setsockopt (sd, SOL_SOCKET, SO_BROADCAST, (const char *) &one, sizeof(int)) != 0) {
-    error("Failed to secure socket broadcasting permission");
-    perror("setsockopt");
-  }
-}
 
 /* Do a receive (recv()) on a socket and stick the results (up to
    len) into buf .  Give up after 'seconds'.  Returns the number of

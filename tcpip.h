@@ -393,10 +393,6 @@ int readudppacket(const u8 *packet, int readdata);
    the interface_info for the first one found.  If non found, returns NULL */
 struct interface_info *getInterfaceByIP(struct sockaddr_storage *ss);
 
-
-pcap_if_t *getpcapinterfaces();
-
-
 /* Fill buf (up to buflen -- truncate if necessary but always
    terminate) with a short representation of the packet stats.
    Returns buf.  Aborts if there is a problem. */
@@ -456,9 +452,6 @@ int gettcpopt_ts(struct tcp_hdr *tcp, u32 *timestamp, u32 *echots);
 
 /* Maximize the receive buffer of a socket descriptor (up to 500K) */
 void max_rcvbuf(int sd);
-
-/* Give broadcast permission to a socket */
-void broadcast_socket(int sd);
 
 /* Do a receive (recv()) on a socket and stick the results (upt to
    len) into buf .  Give up after 'seconds'.  Returns the number of
