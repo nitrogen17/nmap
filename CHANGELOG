@@ -42,11 +42,17 @@ o [Windows] Add support for the new loopback behavior in Npcap 0.9983. This
   Adapter to be installed, which was a source of problems for some users.
   [Daniel Miller]
 
+o [NSE][GH#1931][GH#1932] Script http-grep was not correctly calculating Luhn
+  checksum [Colleen Li, nnposter]
+
 o [NSE][GH#1838] Scripts dhcp-discover and broadcast-dhcp-discover now support
   new argument "mac" to force a specific client MAC address [nnposter]
 
 o [NSE] Code improvements in RPC Dump, benefitting NFS-related scripts
   [nnposter]
+
+o [NSE] RPC code was using incorrect port range, which was causing some calls,
+  such as NFS mountd, to fail intermittently [nnposter]
 
 o [NSE][GH#1876] XML output from script ssl-cert now includes RSA key modulus
   and exponent [nnposter]
