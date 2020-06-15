@@ -49,6 +49,15 @@ o [Windows] Add support for the new loopback behavior in Npcap 0.9983. This
   Adapter to be installed, which was a source of problems for some users.
   [Daniel Miller]
 
+o [NSE][GH#2063] IPP request object conversion to string was not working
+  correctly [nnposter]
+
+o [NSE][GH#2063] IPP response parser was not correctly processing
+  end-of-attributes-tag [nnposter]
+
+o [NSE] Script cups-info was failing due to erroneous double-decoding
+  of the IPP printer status [nnposter]
+
 o [NSE][GH#2010] Oracle TNS parser was incorrectly unmarshalling DALC byte
   arrays [nnposter]
 
